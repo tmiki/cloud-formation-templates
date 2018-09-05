@@ -14,12 +14,12 @@ Please note the following items.
 All templates are classified as rules below, even though there are some execptions.
 Basically, bigger numbered templates depend on smaller numbered them.
 
-0x: Most basic templates needed by all other templates.
-1x,2x: AWS resources dedicated to the application you built don't require server-like resources. In other words, it does not needs the hourly fee.
-3x,4x: AWS resources dedicated to the application require server-like resources. If it is possible, you have to terminate them when you are not using them to reduce cost.
-5x,6x: RESERVED
-7x,8x: RESERVED
-9x: RESERVED
+- 0x: Most basic templates needed by all other templates.
+- 1x,2x: AWS resources dedicated to the application you built which don't require server-like resources. In other words, it does not needs the hourly fee.
+- 3x,4x: AWS resources dedicated to the application which require server-like resources. If it is possible, you have to terminate them when you are not using to reduce cost.
+- 5x,6x: RESERVED
+- 7x,8x: RESERVED
+- 9x: RESERVED
 
 # Cautious things
 ## ACM(Amazon Certificate Manager)
