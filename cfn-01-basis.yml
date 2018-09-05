@@ -1,0 +1,543 @@
+Description:
+  This template enables you to create the following resources.
+  
+  - A VPC
+  - Subnets classified 4 types such as "Front", "Service", "Datastore" and "Bastion. The former 3 subnets spread across 2 AZs.
+  - A Route table as for a Public Subnet.
+  - An Internet Gateway attached the Route table above.
+  - A NAT Gateway will be optionally provided. If you set the parameter "enableNatGw" true, the Route table of "Service" subnets will be associated with the NAT Gateway.
+  - A Route 53 Hosted zone.
+  
+# ------------------------------------------------------------
+# Parameters/Mappings/Conditions section
+# ------------------------------------------------------------
+Parameters:
+  EnvName:
+    Description: Please select the environment you want to create. Besides, its name will be prefixed to all resources' name.
+    Type: String
+    AllowedValues:
+      - dev1
+      - dev2
+      - prd
+  AppServiceName:
+    Description: Please enter the service name will be provided to the customer.
+    Type: String
+    Default: YourApp
+
+  EnableNatGw:
+    Description: This parameter defines whether a NAT Gateway will be created and associated with the Service subnets.
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
+
+  IpAddressAllowedSsh:
+    Description: Global IP address of yours to maintain this system with connecting by ssh.
+    Type: String
+
+  Route53RootDomain:
+    Description: This domain is a base domain of each environment. Assumed this DNS zone is already created and run.
+    Type: String
+    Default: your-app-example.com.
+    AllowedValues:
+      - your-app-example.com.
+
+  PrdRoute53HostedZoneId:
+    Description: When you create the Prd environment, you must specify this parameter properly. This parameter is only used in the prd environment. That is ignored when you create other environments.
+    Type: AWS::Route53::HostedZone::Id
+    Default: Z23YXV4OVPL04A
+
+
+Mappings:
+  Vpc:
+    dev1:
+      VpcName: YourApp-Dev1
+      VpcCIDR: 172.16.0.0/19
+      FrontSubnet1CIDR:     172.16.0.0/24
+      FrontSubnet2CIDR:     172.16.1.0/24
+      ServiceSubnet1CIDR:   172.16.8.0/24
+      ServiceSubnet2CIDR:   172.16.9.0/24
+      DatastoreSubnet1CIDR: 172.16.24.0/24
+      DatastoreSubnet2CIDR: 172.16.25.0/24
+      BastionSubnet1CIDR:   172.16.31.0/26
+    dev2:
+      VpcName: YourApp-Dev2
+      VpcCIDR: 172.16.32.0/19
+      FrontSubnet1CIDR:     172.16.32.0/24
+      FrontSubnet2CIDR:     172.16.33.0/24
+      ServiceSubnet1CIDR:   172.16.40.0/24
+      ServiceSubnet2CIDR:   172.16.41.0/24
+      DatastoreSubnet1CIDR: 172.16.56.0/24
+      DatastoreSubnet2CIDR: 172.16.57.0/24
+      BastionSubnet1CIDR:   172.16.63.0/26
+  Route53:
+    prd:
+      HostedZoneName: your-app-example.com.
+    dev1:
+      HostedZoneName: dev1.your-app-example.com.
+    dev2:
+      HostedZoneName: dev2.your-app-example.com.
+
+Conditions:
+  isPrdEnv: !Equals [ !Ref EnvName, "prd" ]
+  isNotPrdEnv: !Not [Condition: isPrdEnv]
+
+  enableNatGw: !Equals [ !Ref EnableNatGw, "true"]
+  disableNatGw: !Not [Condition: enableNatGw]
+
+
+# ------------------------------------------------------------
+# Resources section
+# ------------------------------------------------------------
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !FindInMap [Vpc, !Ref EnvName, VpcCIDR]
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !FindInMap [Vpc, !Ref EnvName, VpcName]
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !FindInMap [Vpc, !Ref EnvName, VpcName]
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppServiceName
+          Value: !Ref AppServiceName
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref VPC
+
+  # ----------------------------------------
+  # NAT Gateway
+  # ----------------------------------------
+  NatGatewayEIP:
+    Type: AWS::EC2::EIP
+    Condition: enableNatGw
+    Properties:
+      Domain: vpc
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Condition: enableNatGw
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP.AllocationId
+      SubnetId: !Ref FrontSubnet1
+
+
+  # ----------------------------------------
+  # Subnets
+  # ----------------------------------------
+  FrontSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !FindInMap [Vpc, !Ref EnvName, FrontSubnet1CIDR]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}Front(AZ1)
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+  FrontSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !FindInMap [Vpc, !Ref EnvName, FrontSubnet2CIDR]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}Front(AZ2)
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+  ServiceSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !FindInMap [Vpc, !Ref EnvName, ServiceSubnet1CIDR]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}Service(AZ1)
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+  ServiceSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !FindInMap [Vpc, !Ref EnvName, ServiceSubnet2CIDR]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}Service(AZ2)
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+  DatastoreSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !FindInMap [Vpc, !Ref EnvName, DatastoreSubnet1CIDR]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}Datastore(AZ1)
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+  DatastoreSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 1, !GetAZs '' ]
+      CidrBlock: !FindInMap [Vpc, !Ref EnvName, DatastoreSubnet2CIDR]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}Datastore(AZ2)
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+  BastionSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !FindInMap [Vpc, !Ref EnvName, BastionSubnet1CIDR]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}Bastion(AZ1)
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+
+  # ----------------------------------------
+  # RouteTables
+  # ----------------------------------------
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName} Public Routes
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Condition: enableNatGw
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName} Private Routes
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+  DefaultPrivateoute:
+    Type: AWS::EC2::Route
+    Condition: enableNatGw
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref NatGateway
+
+  # ----------------------------------------
+  # RouteTable Associations
+  # ----------------------------------------
+  FrontSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref FrontSubnet1
+
+  FrontSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref FrontSubnet2
+
+  ServiceSubnet1RouteTableAssociationPublic:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: disableNatGw
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref ServiceSubnet1
+
+  ServiceSubnet2RouteTableAssociationPublic:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: disableNatGw
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref ServiceSubnet2
+
+  ServiceSubnet1RouteTableAssociationPrivate:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: enableNatGw
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref ServiceSubnet1
+
+  ServiceSubnet2RouteTableAssociationPrivate:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: enableNatGw
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref ServiceSubnet2
+
+  BastionSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref BastionSubnet1
+
+  # ----------------------------------------
+  # Security Groups
+  # ----------------------------------------
+  SecurityGroupInternal:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: !Sub ${EnvName}-Internal
+      GroupDescription: "Allow all traffic from and to each other within the VPC."
+      SecurityGroupIngress:
+        - CidrIp: !FindInMap [Vpc, !Ref EnvName, VpcCIDR]
+          IpProtocol: "-1"
+          FromPort: "-1"
+          ToPort: "-1"
+
+  SecurityGroupPublicWeb:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: !Sub ${EnvName}-PublicWeb
+      GroupDescription: "Allow HTTP/HTTPS traffic from the Internet to the Web servers."
+      SecurityGroupIngress:
+        - CidrIp: "0.0.0.0/0"
+          IpProtocol: "tcp"
+          FromPort: "80"
+          ToPort: "80"
+        - CidrIp: "0.0.0.0/0"
+          IpProtocol: "tcp"
+          FromPort: "443"
+          ToPort: "443"
+
+  SecurityGroupPublicApi:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: !Sub ${EnvName}-PublicApi
+      GroupDescription: "Allow only HTTPS traffic from the Internet to the API servers."
+      SecurityGroupIngress:
+        - CidrIp: "0.0.0.0/0"
+          IpProtocol: "tcp"
+          FromPort: "80"
+          ToPort: "80"
+        - CidrIp: "0.0.0.0/0"
+          IpProtocol: "tcp"
+          FromPort: "443"
+          ToPort: "443"
+
+  SecurityGroupMaintainer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      VpcId: !Ref VPC
+      GroupName: !Sub ${EnvName}-Maintainer
+      GroupDescription: "Allow SSH/RDP traffic from maintainers."
+      SecurityGroupIngress:
+        - CidrIp: !Ref IpAddressAllowedSsh
+          IpProtocol: "tcp"
+          FromPort: "22"
+          ToPort: "22"
+        - CidrIp: !Ref IpAddressAllowedSsh
+          IpProtocol: "tcp"
+          FromPort: "3389"
+          ToPort: "3389"
+
+  # ----------------------------------------
+  # Route53 HostedZone and NS Delegation Records
+  # ----------------------------------------
+  Route53HostedZone:
+    Type: "AWS::Route53::HostedZone"
+    Condition: isNotPrdEnv
+    Properties:
+      Name: !FindInMap ["Route53", !Ref EnvName, HostedZoneName]
+      HostedZoneTags:
+        - Key: Name
+          Value: !Sub ${EnvName}-Route53HostedZone
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+  Route53DelegationInParent:
+    Type: "AWS::Route53::RecordSet"
+    Condition: isNotPrdEnv
+    Properties:
+      HostedZoneName: !Ref "Route53RootDomain"
+      Name: !FindInMap ["Route53", !Ref EnvName, HostedZoneName]
+      Type: NS
+      ResourceRecords:
+        !GetAtt Route53HostedZone.NameServers
+      TTL: 172800
+
+
+# ------------------------------------------------------------
+# Outputs section
+# ------------------------------------------------------------
+Outputs:
+  VPC:
+    Description: A reference to the created VPC
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${EnvName}-VPC
+
+  FrontSubnets:
+    Description: A list of the front subnets
+    Value: !Join [ ",", [ !Ref FrontSubnet1, !Ref FrontSubnet2 ]]
+    Export:
+      Name: !Sub ${EnvName}-FrontSubnets
+
+  ServiceSubnets:
+    Description: A list of the front subnets
+    Value: !Join [ ",", [ !Ref ServiceSubnet1, !Ref ServiceSubnet2 ]]
+    Export:
+      Name: !Sub ${EnvName}-ServiceSubnets
+
+  DatastoreSubnets:
+    Description: A list of the datastore subnets
+    Value: !Join [ ",", [ !Ref DatastoreSubnet1, !Ref DatastoreSubnet2 ]]
+    Export:
+      Name: !Sub ${EnvName}-DatastoreSubnets
+
+  FrontSubnet1:
+    Description: A reference to the public subnet in the 1st Availability Zone
+    Value: !Ref FrontSubnet1
+    Export:
+      Name: !Sub ${EnvName}-FrontSubnet1
+
+  FrontSubnet2:
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref FrontSubnet2
+    Export:
+      Name: !Sub ${EnvName}-FrontSubnet2
+
+  ServiceSubnet1:
+    Description: A reference to the public subnet in the 1st Availability Zone
+    Value: !Ref ServiceSubnet1
+    Export:
+      Name: !Sub ${EnvName}-ServiceSubnet1
+
+  ServiceSubnet2:
+    Description: A reference to the public subnet in the 2nd Availability Zone
+    Value: !Ref ServiceSubnet2
+    Export:
+      Name: !Sub ${EnvName}-ServiceSubnet2
+
+  DatastoreSubnet1:
+    Description: A reference to the datastore subnet in the 1st Availability Zone
+    Value: !Ref DatastoreSubnet1
+    Export:
+      Name: !Sub ${EnvName}-DatastoreSubnet1
+
+  DatastoreSubnet2:
+    Description: A reference to the datastore subnet in the 2nd Availability Zone
+    Value: !Ref DatastoreSubnet2
+    Export:
+      Name: !Sub ${EnvName}-DatastoreSubnet2
+
+  BastionSubnet1:
+    Description: A reference to the bastion subnet in the 1st Availability Zone
+    Value: !Ref BastionSubnet1
+    Export:
+      Name: !Sub ${EnvName}-BastionSubnet1
+
+  SecurityGroupInternal:
+    Value: !Ref SecurityGroupInternal
+    Export:
+      Name: !Sub ${EnvName}-SecurityGroupInternal
+
+  SecurityGroupPublicWeb:
+    Value: !Ref SecurityGroupPublicWeb
+    Export:
+      Name: !Sub ${EnvName}-SecurityGroupPublicWeb
+
+  SecurityGroupPublicApi:
+    Value: !Ref SecurityGroupPublicApi
+    Export:
+      Name: !Sub ${EnvName}-SecurityGroupPublicApi
+
+  SecurityGroupMaintainer:
+    Value: !Ref SecurityGroupMaintainer
+    Export:
+      Name: !Sub ${EnvName}-SecurityGroupMaintainer
+
+  Route53HostedZoneId:
+    Description: "Route53 Hosted Zone Id."
+    Value:
+      Fn::If:
+        - "isPrdEnv"
+        - !Ref PrdRoute53HostedZoneId
+        - !Ref Route53HostedZone
+    Export:
+      Name: !Sub ${EnvName}-Route53HostedZoneId
+
+  Route53HostedZoneName:
+    Description: "Route53 Hosted Zone Name."
+    Value: !FindInMap ["Route53", !Ref EnvName, HostedZoneName]
+    Export:
+      Name: !Sub ${EnvName}-Route53HostedZoneName
+
