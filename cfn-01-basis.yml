@@ -40,6 +40,8 @@ Parameters:
   IpAddressAllowedSsh:
     Description: Global IP address of yours to maintain this system with connecting by ssh.
     Type: String
+    AllowedPattern:
+      '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$'
 
   Route53BaseDomain:
     Description: This domain is a base domain of each environment. Assumed this DNS zone is already created and running.
@@ -89,7 +91,6 @@ Conditions:
   isNotPrdEnv: !Not [Condition: isPrdEnv]
 
   enableNatGw: !Equals [ !Ref EnableNatGw, "true"]
-  disableNatGw: !Not [Condition: enableNatGw]
 
 
 # ------------------------------------------------------------
@@ -570,7 +571,7 @@ Outputs:
     Description: "Route53 Hosted Zone Id."
     Value:
       Fn::If:
-        - "isPrdEnv"
+        - isPrdEnv
         - !Ref PrdRoute53HostedZoneId
         - !Ref Route53HostedZone
     Export:
@@ -578,7 +579,11 @@ Outputs:
 
   Route53HostedZoneName:
     Description: "Route53 Hosted Zone Name."
-    Value: !Sub ${EnvName}.${Route53BaseDomain}
+    Value:
+      Fn::If:
+        - isPrdEnv
+        - !Sub ${Route53BaseDomain}
+        - !Sub ${EnvName}.${Route53BaseDomain}
     Export:
       Name: !Sub ${EnvName}-Route53HostedZoneName
 
