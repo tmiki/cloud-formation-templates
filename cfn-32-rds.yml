@@ -16,7 +16,7 @@ Parameters:
   EnvName:
     Description: Please select the environment you want to create. Besides, its name will be prefixed to all resources' name.
     Type: String
-    Default: Dev1
+    Default: dev1
 
   AppServiceName:
     Description: Please enter the service name will be provided to the customer.
