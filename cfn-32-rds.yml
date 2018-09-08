@@ -1,0 +1,243 @@
+Description:
+  This template creates an Aurora(MySQL) Cluster and instance(s) into the VPC created beforehand by the "cfn-01-basis.yml" template.
+  You cannot create any type of RDSs except Aurora(MySQL).
+
+  This template depends on the following export names.
+  "${EnvName}-VPC"
+  "${EnvName}-DatastoreSubnet1"
+  "${EnvName}-DatastoreSubnet2"
+  "${EnvName}-SecurityGroupInternal"
+
+
+# ------------------------------------------------------------
+# Parameters section
+# ------------------------------------------------------------
+Parameters:
+  EnvName:
+    Description: Please select the environment you want to create. Besides, its name will be prefixed to all resources' name.
+    Type: String
+    Default: Dev1
+
+  AppServiceName:
+    Description: Please enter the service name will be provided to the customer.
+    Type: String
+    Default: YourApp
+
+  RevisionNumber:
+    Description: The revision number of this template consists of 3 parts.
+    Type: String
+    Default: 0.1.0
+
+  DBMasterUserName:
+    Description: Please enter the name of the master user on an RDS.
+    Type: String
+    Default: master
+
+  DBMasterUserPassword:
+    Description: Please enter the password of the master user on an RDS. That should be greater or equal to 8 characters.
+    Type: String
+    NoEcho: true
+
+  DBSnapshotArn:
+    Description: If you want to create an Aurora Cluster from your snapshot, please enter your Snapshot ARN. If you leave it empty, this template creates a brand new Aurora Cluster.
+    Type: String
+
+  EnableMultiAz:
+    Description: Decide whether the Aurora Cluster has a single instance or 2 instances.
+    Type: String
+    Default: false
+    AllowedValues:
+      - true
+      - false
+
+Mappings:
+  RDS:
+    dev1:
+      ClusterName: dev1-yourapp-cluster
+      Instance1Name: dev1-yourapp-instance1
+      Instance2Name: dev1-yourapp-instance2
+      InstanceType: db.t2.small
+      BackupRetentionPeriod: 3
+      PreferredBackupWindow: "18:00-19:00"  # in UTC
+      PreferredMaintenanceWindow: "sat:19:30-sat:20:00"  # in UTC
+    dev2:
+      ClusterName: dev2-yourapp-cluster
+      Instance1Name: dev2-yourapp-instance1
+      Instance2Name: dev2-yourapp-instance2
+      InstanceType: db.t2.small
+      BackupRetentionPeriod: 3
+      PreferredBackupWindow: "18:00-19:00"  # in UTC
+      PreferredMaintenanceWindow: "sat:19:30-sat:20:00"  # in UTC
+    prd:
+      ClusterName: prd-yourapp-cluster
+      Instance1Name: prd-yourapp-instance1
+      Instance2Name: prd-yourapp-instance2
+      InstanceType: db.t2.medium
+      BackupRetentionPeriod: 15
+      PreferredBackupWindow: "18:00-19:00"  # in UTC
+      PreferredMaintenanceWindow: "sat:19:30-sat:20:00"  # in UTC
+  Route53:
+    dev1:
+      HostedZoneName: dev1.your-app-example.com.
+    dev2:
+      HostedZoneName: dev2.your-app-example.com.
+    prd:
+      HostedZoneName: your-app-example.com.
+
+Conditions:
+  isBrandNewDB: !Equals [ !Ref DBSnapshotArn, "" ]
+  enableMultiAz: !Equals [ !Ref EnableMultiAz, "true" ]
+
+
+# ------------------------------------------------------------
+# Resources section
+# ------------------------------------------------------------
+Resources:
+  #
+  # define Parameter Groups
+  #
+  DBParameterGroup:
+    Type: "AWS::RDS::DBParameterGroup"
+    Properties:
+      Description: "RDS DB parameter group the Aurora Cluster's instance(s)."
+      Family: "aurora5.7"
+      Parameters:
+        max_connections: "1000"
+
+  DBClusterParameterGroup:
+    Type: "AWS::RDS::DBClusterParameterGroup"
+    Properties:
+      Description: "RDS DB cluster parameter group for Hub-Amber"
+      Family: "aurora5.7"
+      Parameters:
+        character_set_client: "utf8mb4"
+        character_set_connection: "utf8mb4"
+        character_set_database: "utf8mb4"
+        character_set_filesystem: "utf8mb4"
+        character_set_results: "utf8mb4"
+        character_set_server: "utf8mb4"
+        collation_connection: "utf8mb4_bin"
+        collation_server: "utf8mb4_bin"
+        time_zone: "UTC"
+
+  #
+  # define RDS
+  #
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: RDS subnet group.
+      SubnetIds:
+        - Fn::ImportValue: !Sub ${EnvName}-DatastoreSubnet1
+        - Fn::ImportValue: !Sub ${EnvName}-DatastoreSubnet2
+
+  DBCluster:
+    Type: AWS::RDS::DBCluster
+    DeletionPolicy: Snapshot
+    Properties:
+      Engine: aurora
+      SnapshotIdentifier:
+        !If [isBrandNewDB, !Ref "AWS::NoValue", !Ref "DBSnapshotArn" ]
+      # DBClusterIdentifier: !FindInMap [RDS, !Ref "EnvName", "ClusterName"]
+      MasterUsername:
+       !If [isBrandNewDB, !Ref "DBMasterUserName", !Ref "AWS::NoValue" ]
+      MasterUserPassword:
+       !If [isBrandNewDB, !Ref "DBMasterUserPassword", !Ref "AWS::NoValue" ]
+      BackupRetentionPeriod: !FindInMap [RDS, !Ref "EnvName", "BackupRetentionPeriod"]
+      PreferredBackupWindow: !FindInMap [RDS, !Ref "EnvName", "PreferredBackupWindow"]
+      PreferredMaintenanceWindow: !FindInMap [RDS, !Ref "EnvName", "PreferredMaintenanceWindow"]
+      DBSubnetGroupName: !Ref "DBSubnetGroup"
+      DBClusterParameterGroupName: !Ref "DBClusterParameterGroup"
+      VpcSecurityGroupIds:
+        - Fn::ImportValue: !Sub ${EnvName}-SecurityGroupInternal
+      Tags:
+        - Key: Name
+          Value: !FindInMap [RDS, !Ref "EnvName", "ClusterName"]
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: Service
+          Value: !Ref AppServiceName
+        - Key: Role
+          Value: Datastore
+
+  DBInstance1:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: aurora
+      DBClusterIdentifier: !Ref "DBCluster"
+      DBInstanceClass: !FindInMap [RDS, !Ref "EnvName", "InstanceType"]
+      DBSubnetGroupName: !Ref "DBSubnetGroup"
+      DBParameterGroupName: !Ref "DBParameterGroup"
+      Tags:
+        - Key: Name
+          Value: !FindInMap [RDS, !Ref "EnvName", "Instance1Name"]
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: Service
+          Value: !Ref AppServiceName
+        - Key: Role
+          Value: Datastore
+
+  DBInstance2:
+    Type: AWS::RDS::DBInstance
+    Condition: enableMultiAz
+    Properties:
+      Engine: aurora
+      DBClusterIdentifier: !Ref "DBCluster"
+      DBInstanceClass: !FindInMap [RDS, !Ref "EnvName", "InstanceType"]
+      DBSubnetGroupName: !Ref "DBSubnetGroup"
+      Tags:
+        - Key: Name
+          Value: !FindInMap [RDS, !Ref "EnvName", "Instance1Name"]
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: Service
+          Value: !Ref AppServiceName
+        - Key: Role
+          Value: Datastore
+
+  #
+  # define Route 53 records
+  #
+  RdsWriterDnsRecord:
+    Type: "AWS::Route53::RecordSet"
+    Properties:
+      HostedZoneName: !FindInMap [Route53, !Ref "EnvName", "HostedZoneName"]
+      Name: !Join ["", ["rds-writer.", !FindInMap [Route53, !Ref "EnvName", "HostedZoneName"] ] ]
+      Type: CNAME
+      ResourceRecords:
+        - !GetAtt DBCluster.Endpoint.Address
+      TTL: "60"
+
+  RdsReaderDnsRecord:
+    Type: "AWS::Route53::RecordSet"
+    Properties:
+      HostedZoneName: !FindInMap [Route53, !Ref "EnvName", "HostedZoneName"]
+      Name: !Join ["", ["rds-reader.", !FindInMap [Route53, !Ref "EnvName", "HostedZoneName"] ] ]
+      Type: CNAME
+      ResourceRecords:
+        - !GetAtt DBCluster.ReadEndpoint.Address
+      TTL: "60"
+
+# ------------------------------------------------------------
+# Outputs section
+# ------------------------------------------------------------
+Outputs:
+  DBCluster:
+    Description: An Aurora(MySQL) Cluster
+    Value: !Ref DBCluster
+    Export:
+      Name: !Sub ${EnvName}-DBCluster
+
+  RdsWriterDnsRecord:
+    Description: A DNS record of the RDS writer Endpoint.
+    Value: !Ref RdsWriterDnsRecord
+    Export:
+      Name: !Sub ${EnvName}-RdsWriterDnsRecord
+
+  RdsReaderDnsRecord:
+    Description: A DNS record of the RDS reader Endpoint.
+    Value: !Ref RdsReaderDnsRecord
+    Export:
+      Name: !Sub ${EnvName}-RdsReaderDnsRecord
+
