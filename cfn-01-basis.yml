@@ -24,6 +24,11 @@ Parameters:
     Type: String
     Default: YourApp
 
+  RevisionNumber:
+    Description: The revision number of this template consists of 3 parts.
+    Type: String
+    Default: 0.1.0
+
   EnableNatGw:
     Description: This parameter defines whether a NAT Gateway will be created and associated with the Service subnets.
     Type: String
