@@ -59,7 +59,7 @@ Mappings:
       InstanceType: db.t2.small
       BackupRetentionPeriod: 3
       PreferredBackupWindow: "18:00-19:00"  # in UTC
-      PreferredMaintenanceWindow: "sat:19:30-sat:20:00"  # in UTC
+      PreferredMaintenanceWindow: "sun:19:30-sun:20:00"  # in UTC
     dev2:
       ClusterName: dev2-yourapp-cluster
       Instance1Name: dev2-yourapp-instance1
@@ -67,7 +67,7 @@ Mappings:
       InstanceType: db.t2.small
       BackupRetentionPeriod: 3
       PreferredBackupWindow: "18:00-19:00"  # in UTC
-      PreferredMaintenanceWindow: "sat:19:30-sat:20:00"  # in UTC
+      PreferredMaintenanceWindow: "sun:19:30-sun:20:00"  # in UTC
     prd:
       ClusterName: prd-yourapp-cluster
       Instance1Name: prd-yourapp-instance1
@@ -75,7 +75,7 @@ Mappings:
       InstanceType: db.t2.medium
       BackupRetentionPeriod: 15
       PreferredBackupWindow: "18:00-19:00"  # in UTC
-      PreferredMaintenanceWindow: "sat:19:30-sat:20:00"  # in UTC
+      PreferredMaintenanceWindow: "sun:19:30-sun:20:00"  # in UTC
   Route53:
     dev1:
       HostedZoneName: dev1.your-app-example.com.
