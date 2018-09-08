@@ -41,7 +41,7 @@ Parameters:
     Description: Global IP address of yours to maintain this system with connecting by ssh.
     Type: String
 
-  Route53RootDomain:
+  Route53BaseDomain:
     Description: This domain is a base domain of each environment. Assumed this DNS zone is already created and running.
     Type: String
     Default: your-app-example.com.
@@ -126,13 +126,7 @@ Resources:
     Properties:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !Ref VPC
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvName}-IGW
-        - Key: Env
-          Value: !Ref EnvName
-        - Key: AppService
-          Value: !Ref AppServiceName
+
 
   # ----------------------------------------
   # NAT Gateway
@@ -142,13 +136,6 @@ Resources:
     Condition: enableNatGw
     Properties:
       Domain: vpc
-      Tags:
-        - Key: Name
-          Value: !Sub ${EnvName}-NatGateway1
-        - Key: Env
-          Value: !Ref EnvName
-        - Key: AppService
-          Value: !Ref AppServiceName
 
   NatGateway1:
     Type: AWS::EC2::NatGateway
@@ -468,7 +455,7 @@ Resources:
     Condition: isNotPrdEnv
     Properties:
       # Name: !FindInMap ["Route53", !Ref EnvName, HostedZoneName]
-      Name: !Sub ${EnvName}.${Route53RootDomain}
+      Name: !Sub ${EnvName}.${Route53BaseDomain}
       HostedZoneTags:
         - Key: Name
           Value: !Sub ${EnvName}-Route53HostedZone
@@ -481,8 +468,8 @@ Resources:
     Type: "AWS::Route53::RecordSet"
     Condition: isNotPrdEnv
     Properties:
-      HostedZoneName: !Ref "Route53RootDomain"
-      Name: !Sub ${EnvName}.${Route53RootDomain}
+      HostedZoneName: !Ref "Route53BaseDomain"
+      Name: !Sub ${EnvName}.${Route53BaseDomain}
       Type: NS
       ResourceRecords:
         !GetAtt Route53HostedZone.NameServers
@@ -591,7 +578,7 @@ Outputs:
 
   Route53HostedZoneName:
     Description: "Route53 Hosted Zone Name."
-    Value: !Sub ${EnvName}. !Ref Route53RootDomain
+    Value: !Sub ${EnvName}.${Route53BaseDomain}
     Export:
       Name: !Sub ${EnvName}-Route53HostedZoneName
 
