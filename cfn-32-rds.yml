@@ -7,6 +7,7 @@ Description:
   "${EnvName}-DatastoreSubnet1"
   "${EnvName}-DatastoreSubnet2"
   "${EnvName}-SecurityGroupInternal"
+  "${EnvName}-Route53HostedZoneName"
 
 
 # ------------------------------------------------------------
@@ -76,13 +77,13 @@ Mappings:
       BackupRetentionPeriod: 15
       PreferredBackupWindow: "18:00-19:00"  # in UTC
       PreferredMaintenanceWindow: "sun:19:30-sun:20:00"  # in UTC
-  Route53:
-    dev1:
-      HostedZoneName: dev1.your-app-example.com.
-    dev2:
-      HostedZoneName: dev2.your-app-example.com.
-    prd:
-      HostedZoneName: your-app-example.com.
+  # Route53:
+  #   dev1:
+  #     HostedZoneName: dev1.your-app-example.com.
+  #   dev2:
+  #     HostedZoneName: dev2.your-app-example.com.
+  #   prd:
+  #     HostedZoneName: your-app-example.com.
 
 Conditions:
   isBrandNewDB: !Equals [ !Ref DBSnapshotArn, "" ]
@@ -96,19 +97,22 @@ Resources:
   #
   # define Parameter Groups
   #
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-rds-dbparametergroup.html
   DBParameterGroup:
     Type: "AWS::RDS::DBParameterGroup"
     Properties:
       Description: "RDS DB parameter group the Aurora Cluster's instance(s)."
-      Family: "aurora5.7"
+      Family: "aurora-mysql5.7"
       Parameters:
         max_connections: "1000"
 
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-rds-dbclusterparametergroup.html
   DBClusterParameterGroup:
     Type: "AWS::RDS::DBClusterParameterGroup"
     Properties:
       Description: "RDS DB cluster parameter group for Hub-Amber"
-      Family: "aurora5.7"
+      Family: "aurora-mysql5.7"
       Parameters:
         character_set_client: "utf8mb4"
         character_set_connection: "utf8mb4"
@@ -123,6 +127,8 @@ Resources:
   #
   # define RDS
   #
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-rds-dbsubnet-group.html
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -131,14 +137,16 @@ Resources:
         - Fn::ImportValue: !Sub ${EnvName}-DatastoreSubnet1
         - Fn::ImportValue: !Sub ${EnvName}-DatastoreSubnet2
 
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-rds-dbcluster.html
   DBCluster:
     Type: AWS::RDS::DBCluster
     DeletionPolicy: Snapshot
     Properties:
-      Engine: aurora
+      Engine: aurora-mysql
+      EngineVersion: 5.7.12
       SnapshotIdentifier:
         !If [isBrandNewDB, !Ref "AWS::NoValue", !Ref "DBSnapshotArn" ]
-      # DBClusterIdentifier: !FindInMap [RDS, !Ref "EnvName", "ClusterName"]
+      DBClusterIdentifier: !FindInMap [RDS, !Ref "EnvName", "ClusterName"]
       MasterUsername:
        !If [isBrandNewDB, !Ref "DBMasterUserName", !Ref "AWS::NoValue" ]
       MasterUserPassword:
@@ -160,10 +168,11 @@ Resources:
         - Key: Role
           Value: Datastore
 
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-rds-database-instance.html
   DBInstance1:
     Type: AWS::RDS::DBInstance
     Properties:
-      Engine: aurora
+      Engine: aurora-mysql
       DBClusterIdentifier: !Ref "DBCluster"
       DBInstanceClass: !FindInMap [RDS, !Ref "EnvName", "InstanceType"]
       DBSubnetGroupName: !Ref "DBSubnetGroup"
@@ -178,11 +187,12 @@ Resources:
         - Key: Role
           Value: Datastore
 
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-rds-database-instance.html
   DBInstance2:
     Type: AWS::RDS::DBInstance
     Condition: enableMultiAz
     Properties:
-      Engine: aurora
+      Engine: aurora-mysql
       DBClusterIdentifier: !Ref "DBCluster"
       DBInstanceClass: !FindInMap [RDS, !Ref "EnvName", "InstanceType"]
       DBSubnetGroupName: !Ref "DBSubnetGroup"
@@ -199,21 +209,36 @@ Resources:
   #
   # define Route 53 records
   #
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-route53-recordset.html
   RdsWriterDnsRecord:
     Type: "AWS::Route53::RecordSet"
     Properties:
-      HostedZoneName: !FindInMap [Route53, !Ref "EnvName", "HostedZoneName"]
-      Name: !Join ["", ["rds-writer.", !FindInMap [Route53, !Ref "EnvName", "HostedZoneName"] ] ]
+      HostedZoneName:
+        Fn::ImportValue: 
+          !Sub "${EnvName}-Route53HostedZoneName"
+      Name:
+        Fn::Join:
+          - ""
+          - - "rds-writer."
+            - Fn::ImportValue: !Sub "${EnvName}-Route53HostedZoneName"
       Type: CNAME
       ResourceRecords:
         - !GetAtt DBCluster.Endpoint.Address
       TTL: "60"
 
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-route53-recordset.html
   RdsReaderDnsRecord:
     Type: "AWS::Route53::RecordSet"
     Properties:
-      HostedZoneName: !FindInMap [Route53, !Ref "EnvName", "HostedZoneName"]
-      Name: !Join ["", ["rds-reader.", !FindInMap [Route53, !Ref "EnvName", "HostedZoneName"] ] ]
+      HostedZoneName:
+        Fn::ImportValue:
+          !Sub "${EnvName}-Route53HostedZoneName"
+      Name:
+        Fn::Join:
+          - ""
+          - - "rds-reader."
+            - Fn::ImportValue: !Sub "${EnvName}-Route53HostedZoneName"
       Type: CNAME
       ResourceRecords:
         - !GetAtt DBCluster.ReadEndpoint.Address
