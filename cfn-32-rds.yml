@@ -198,7 +198,7 @@ Resources:
       DBSubnetGroupName: !Ref "DBSubnetGroup"
       Tags:
         - Key: Name
-          Value: !FindInMap [RDS, !Ref "EnvName", "Instance1Name"]
+          Value: !FindInMap [RDS, !Ref "EnvName", "Instance2Name"]
         - Key: Env
           Value: !Ref EnvName
         - Key: Service
