@@ -58,6 +58,7 @@ Resources:
                   - sts:AssumeRole
                 Resource:
                   - "arn:aws:iam::*:role/AWSCloudFormationStackSetExecutionRole"
+                  - "arn:aws:iam::*:role/OrganizationAccountAccessRole"
       Tags: 
         - Key: Name
           Value: !Ref AdminRoleName
