@@ -57,7 +57,7 @@ Resources:
   # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html
   FullAdministratorRole:
     Type: AWS::IAM::Role
-    Properties: 
+    Properties:
       RoleName: !Ref FullAdministratorRoleName
       AssumeRolePolicyDocument:
         Version: "2012-10-17"
@@ -71,7 +71,7 @@ Resources:
       Description:
         This role allows IAM users in the administrator account to perform AssumeRole to obtain the privileges of this AWS account
       Path: '/'
-      Policies: 
+      Policies:
         - PolicyName: AllowAdministratorAccess
           PolicyDocument:
             Version: "2012-10-17"
@@ -79,11 +79,38 @@ Resources:
               - Effect: "Allow"
                 Action: "*"
                 Resource: "*"
-      Tags: 
+      Tags:
         - Key: Name
           Value: !Ref FullAdministratorRoleName
         - Key: EnvName
           Value: All
+
+  # AWS::IAM::Role - AWS CloudFormation
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html
+  AccountingRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref AccountingRoleName
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              AWS:
+                - !Ref AdministratorAwsAccountId
+            Action:
+              - sts:AssumeRole
+      Description:
+        This role allows IAM users in the administrator account to invoke billing-related actions within the target AWS account.
+      Path: '/'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/job-function/Billing
+      Tags:
+        - Key: Name
+          Value: !Ref AccountingRoleName
+        - Key: EnvName
+          Value: All
+
 
 # ------------------------------------------------------------
 # Outputs section
