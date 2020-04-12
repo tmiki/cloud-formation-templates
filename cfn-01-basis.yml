@@ -6,7 +6,6 @@ Description:
   - A Route table as for a Public Subnet.
   - An Internet Gateway attached the Route table above.
   - A NAT Gateway and associated subnets and a route table will be optionally provided. If you set the parameter "enableNatGw" true, subnets called "PrivateSubnet*" and necessary resources are created.
-  - A Route 53 Hosted zone.
   
 # ------------------------------------------------------------
 # Parameters/Mappings/Conditions section
@@ -27,7 +26,7 @@ Parameters:
   RevisionNumber:
     Description: The revision number of this template consists of 3 parts.
     Type: String
-    Default: 0.2.0
+    Default: 0.3.0
 
   EnableNatGw:
     Description: This parameter defines whether to create Private Subnets with a NAT Gateway.
@@ -42,15 +41,6 @@ Parameters:
     Type: String
     AllowedPattern:
       '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$'
-
-  Route53BaseDomain:
-    Description: This domain is a base domain of each environment. Assumed this DNS zone is already created and running.
-    Type: String
-    Default: your-app-example.com.
-
-  PrdRoute53HostedZoneId:
-    Description: When you create the Prd environment, you must specify this parameter properly. This parameter is only used in the prd environment. That is ignored when you create other environments.
-    Type: AWS::Route53::HostedZone::Id
 
 Mappings:
   Vpc:
@@ -78,18 +68,8 @@ Mappings:
       DatastoreSubnet1CIDR: 172.16.56.0/24
       DatastoreSubnet2CIDR: 172.16.58.0/24
       BastionSubnet1CIDR:   172.16.63.0/26
-  # Route53:
-  #   prd:
-  #     HostedZoneName: your-app-example.com.
-  #   dev1:
-  #     HostedZoneName: dev1.your-app-example.com.
-  #   dev2:
-  #     HostedZoneName: dev2.your-app-example.com.
 
 Conditions:
-  isPrdEnv: !Equals [ !Ref EnvName, "prd" ]
-  isNotPrdEnv: !Not [Condition: isPrdEnv]
-
   enableNatGw: !Equals [ !Ref EnableNatGw, "true"]
 
 
@@ -105,7 +85,7 @@ Resources:
       EnableDnsHostnames: true
       Tags:
         - Key: Name
-          Value: !FindInMap [Vpc, !Ref EnvName, VpcName]
+          Value: !Sub ${EnvName}-${AppServiceName}
         - Key: Env
           Value: !Ref EnvName
         - Key: AppService
@@ -116,7 +96,7 @@ Resources:
     Properties:
       Tags:
         - Key: Name
-          Value: !FindInMap [Vpc, !Ref EnvName, VpcName]
+          Value: !Sub ${EnvName}-${AppServiceName}
         - Key: Env
           Value: !Ref EnvName
         - Key: AppServiceName
@@ -448,35 +428,6 @@ Resources:
           FromPort: 3389
           ToPort: 3389
 
-  # ----------------------------------------
-  # Route53 HostedZone and NS Delegation Records
-  # ----------------------------------------
-  Route53HostedZone:
-    Type: "AWS::Route53::HostedZone"
-    Condition: isNotPrdEnv
-    Properties:
-      # Name: !FindInMap ["Route53", !Ref EnvName, HostedZoneName]
-      Name: !Sub ${EnvName}.${Route53BaseDomain}
-      HostedZoneTags:
-        - Key: Name
-          Value: !Sub ${EnvName}-Route53HostedZone
-        - Key: Env
-          Value: !Ref EnvName
-        - Key: AppService
-          Value: !Ref AppServiceName
-
-  Route53DelegationInParent:
-    Type: "AWS::Route53::RecordSet"
-    Condition: isNotPrdEnv
-    Properties:
-      HostedZoneName: !Ref "Route53BaseDomain"
-      Name: !Sub ${EnvName}.${Route53BaseDomain}
-      Type: NS
-      ResourceRecords:
-        !GetAtt Route53HostedZone.NameServers
-      TTL: "172800"
-
-
 # ------------------------------------------------------------
 # Outputs section
 # ------------------------------------------------------------
@@ -567,23 +518,4 @@ Outputs:
     Export:
       Name: !Sub ${EnvName}-SecurityGroupMaintainer
 
-  Route53HostedZoneId:
-    Description: "Route53 Hosted Zone Id."
-    Value:
-      Fn::If:
-        - isPrdEnv
-        - !Ref PrdRoute53HostedZoneId
-        - !Ref Route53HostedZone
-    Export:
-      Name: !Sub ${EnvName}-Route53HostedZoneId
-
-  Route53HostedZoneName:
-    Description: "Route53 Hosted Zone Name."
-    Value:
-      Fn::If:
-        - isPrdEnv
-        - !Sub ${Route53BaseDomain}
-        - !Sub ${EnvName}.${Route53BaseDomain}
-    Export:
-      Name: !Sub ${EnvName}-Route53HostedZoneName
 
