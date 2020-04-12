@@ -42,10 +42,37 @@ Parameters:
     AllowedPattern:
       '^(([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\.){3}([0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])(\/([0-9]|[1-2][0-9]|3[0-2]))$'
 
+  EnableRoute53HostedZone:
+    Description: If you are going to create a new Route53 hosted zone or specify an exsiting Route53 hosted zone, please specify this parameter properly.
+    Type: String
+    Default: false
+    AllowedValues:
+      - CreateNewHostedZone
+      - SpecifyAlreadyExistingHostedZone
+      - false
+
+  Route53AlreadyExistingHostedZoneId:
+    Description:
+      When you specify the parameters "EnableRoute53HostedZone" "SpecifyAlreadyExistingHostedZone", you must specify this parameter properly.
+      If you don't specify the parameter EnableRoute53HostedZone so, this parameter is ignored.
+    Type: String
+
+  Route53NewHostedZoneName:
+    Description: This domain is a base domain of each environment. Assumed this DNS zone is already created and running.
+    Type: String
+    Default: your-app-example.com.
+
+  Route53NewHostedZoneWithEnvName:
+    Description: If you want to create your Route53 Hosted Zone with the name ${EnvName}.${Route53NewHostedZoneName}, please specify this parameter true.
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
 Mappings:
   Vpc:
     dev1:
-      VpcName: dev1-YourApp
       VpcCIDR: 172.16.0.0/19
       FrontSubnet1CIDR:     172.16.0.0/23
       FrontSubnet2CIDR:     172.16.2.0/23
@@ -57,7 +84,6 @@ Mappings:
       DatastoreSubnet2CIDR: 172.16.26.0/24
       BastionSubnet1CIDR:   172.16.31.0/26
     dev2:
-      VpcName: dev2-YourApp
       VpcCIDR: 172.16.32.0/19
       FrontSubnet1CIDR:     172.16.32.0/23
       FrontSubnet2CIDR:     172.16.34.0/23
@@ -70,8 +96,14 @@ Mappings:
       BastionSubnet1CIDR:   172.16.63.0/26
 
 Conditions:
-  enableNatGw: !Equals [ !Ref EnableNatGw, "true"]
-
+  enableNatGw: !Equals [ !Ref EnableNatGw, "true" ]
+  enableRoute53:
+    Fn::Or:
+      - Fn::Equals: [ !Ref EnableRoute53HostedZone, "CreateNewHostedZone" ]
+      - Fn::Equals: [ !Ref EnableRoute53HostedZone, "SpecifyAlreadyExistingHostedZone" ]
+  createRoute53NewHostedZone: !Equals [ !Ref EnableRoute53HostedZone, "CreateNewHostedZone" ]
+  createRoute53HostedZoneWithEnvName: !Equals [ !Ref Route53NewHostedZoneWithEnvName, "true" ]
+  usingRoute53AlreadyExistingHostedZone: !Equals [ !Ref EnableRoute53HostedZone, "SpecifyAlreadyExistingHostedZone" ]
 
 # ------------------------------------------------------------
 # Resources section
@@ -428,6 +460,30 @@ Resources:
           FromPort: 3389
           ToPort: 3389
 
+
+  # ----------------------------------------
+  # Route53 HostedZone and NS Delegation Records
+  # ----------------------------------------
+
+  # AWS::Route53::HostedZone
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-route53-hostedzone.html
+  Route53HostedZone:
+    Type: "AWS::Route53::HostedZone"
+    Condition: createRoute53NewHostedZone
+    Properties:
+      Name:
+        Fn::If:
+          - createRoute53HostedZoneWithEnvName
+          - !Sub ${EnvName}.${Route53NewHostedZoneName}
+          - !Sub ${Route53NewHostedZoneName}
+      HostedZoneTags:
+        - Key: Name
+          Value: !Sub ${EnvName}-Route53HostedZone
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
 # ------------------------------------------------------------
 # Outputs section
 # ------------------------------------------------------------
@@ -518,4 +574,21 @@ Outputs:
     Export:
       Name: !Sub ${EnvName}-SecurityGroupMaintainer
 
+  Route53HostedZoneId:
+    Description: "Route53 Hosted Zone Id."
+    Condition: enableRoute53
+    Value: !Ref Route53HostedZone
+    Export:
+      Name: !Sub ${EnvName}-Route53HostedZoneId
+
+  Route53HostedZoneName:
+    Description: "Route53 Hosted Zone Name."
+    Condition: enableRoute53
+    Value:
+      Fn::If:
+        - createRoute53HostedZoneWithEnvName
+        - !Sub ${EnvName}.${Route53NewHostedZoneName}
+        - !Sub ${Route53NewHostedZoneName}
+    Export:
+      Name: !Sub ${EnvName}-Route53HostedZoneName
 
