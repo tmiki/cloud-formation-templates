@@ -1,0 +1,126 @@
+Description:
+  This template enables you to create the following resources.
+  
+  - A Route 53 Hosted zone.
+  
+# ------------------------------------------------------------
+# Parameters/Mappings/Conditions section
+# ------------------------------------------------------------
+Parameters:
+  EnvName:
+    Description: Please select the environment you want to create. Besides, its name will be prefixed to all resources' name.
+    Type: String
+    AllowedValues:
+      - dev1
+      - dev2
+      - prd
+  AppServiceName:
+    Description: Please enter the service name will be provided to the customer.
+    Type: String
+    Default: YourApp
+
+  RevisionNumber:
+    Description: The revision number of this template consists of 3 parts.
+    Type: String
+    Default: 0.4.0
+
+  EnableRoute53HostedZone:
+    Description:
+      If you are going to create a new Route53 hosted zone or specify an exsiting Route53 hosted zone, please specify this parameter properly.
+      "CreateNewIndependentHostedZone" is creating a new Route53 hosted zone.
+      When you specify "CreateNewDependentHostedZone", you need to already have a Route53 hosted zone as its parent zone within this AWS account. Because this option will add a Route53 NS record which points to the created zone to the parent zone.
+      "SpecifyAlreadyExistingHostedZone" never create Route53 hosted zone. However if you specify this parameter, subsequent CloudFormation templates can add arbitrary CNAME/ALIAS records in order for clients to point their endpoint with stable name.
+    Type: String
+    Default: false
+    AllowedValues:
+      - CreateNewIndependentHostedZone
+      - CreateNewDependentHostedZone
+      - SpecifyAlreadyExistingHostedZone
+      - false
+
+  Route53AlreadyExistingHostedZoneId:
+    Description:
+      When you specify the parameters "EnableRoute53HostedZone" "SpecifyAlreadyExistingHostedZone", you must specify this parameter properly.
+      If you specify the parameter "EnableRoute53HostedZone" with an option except "SpecifyAlreadyExistingHostedZone", this parameter is ignored.
+    Type: String
+
+  Route53NewHostedZoneName:
+    Description:
+      Please specify the domain name you want to create.
+      If you specify the parameter "EnableRoute53HostedZone" "SpecifyAlreadyExistingHostedZone", this parameter is ignored.
+      If you specify the parameter "EnableRoute53HostedZone" "CreateNewDependentHostedZone", the domain name would be ${EnvName}.${Route53NewHostedZoneName}.
+    Type: String
+    Default: your-app-example.com.
+
+  Route53NewHostedZoneWithEnvName:
+    Description:  please specify this parameter true.
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+# Mappings:
+
+Conditions:
+  enableRoute53:
+    Fn::Or:
+      - !Equals [ !Ref EnableRoute53HostedZone, "CreateNewIndependentHostedZone" ]
+      - !Equals [ !Ref EnableRoute53HostedZone, "CreateNewDependentHostedZone" ]
+      - !Equals [ !Ref EnableRoute53HostedZone, "SpecifyAlreadyExistingHostedZone" ]
+  createRoute53NewHostedZone:
+    Fn::Or:
+      - !Equals [ !Ref EnableRoute53HostedZone, "CreateNewIndependentHostedZone" ]
+      - !Equals [ !Ref EnableRoute53HostedZone, "CreateNewDependentHostedZone" ]
+  createRoute53HostedZoneWithEnvName: !Equals [ !Ref EnableRoute53HostedZone, "CreateNewDependentHostedZone" ]
+  usingRoute53AlreadyExistingHostedZone: !Equals [ !Ref EnableRoute53HostedZone, "SpecifyAlreadyExistingHostedZone" ]
+
+# ------------------------------------------------------------
+# Resources section
+# ------------------------------------------------------------
+Resources:
+  # ----------------------------------------
+  # Route53 HostedZone and NS Delegation Records
+  # ----------------------------------------
+
+  # AWS::Route53::HostedZone
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-route53-hostedzone.html
+  Route53HostedZone:
+    Type: "AWS::Route53::HostedZone"
+    Condition: createRoute53NewHostedZone
+    Properties:
+      Name:
+        Fn::If:
+          - createRoute53HostedZoneWithEnvName
+          - !Sub ${EnvName}.${Route53NewHostedZoneName}
+          - !Sub ${Route53NewHostedZoneName}
+      HostedZoneTags:
+        - Key: Name
+          Value: !Sub ${EnvName}-Route53HostedZone
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+# ------------------------------------------------------------
+# Outputs section
+# ------------------------------------------------------------
+Outputs:
+  Route53HostedZoneId:
+    Description: "Route53 Hosted Zone Id."
+    Condition: enableRoute53
+    Value: !Ref Route53HostedZone
+    Export:
+      Name: !Sub ${EnvName}-Route53HostedZoneId
+
+  Route53HostedZoneName:
+    Description: "Route53 Hosted Zone Name."
+    Condition: enableRoute53
+    Value:
+      Fn::If:
+        - createRoute53HostedZoneWithEnvName
+        - !Sub ${EnvName}.${Route53NewHostedZoneName}
+        - !Sub ${Route53NewHostedZoneName}
+    Export:
+      Name: !Sub ${EnvName}-Route53HostedZoneName
+
