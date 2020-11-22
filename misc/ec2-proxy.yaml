@@ -1,8 +1,7 @@
 ---
 Description: |
   You can create a stack in AWS CLI as below.
-  $ aws cloudformation deploy --template-file ec2-proxy.yaml --stack-name ec2-proxy --parameter-overrides KeyPairName=${your key pair name} MyIpAddress=${You global IP address}/32
-
+  $ aws cloudformation deploy --template-file ec2-proxy.yaml --stack-name ec2-proxy --parameter-overrides KeyPairName=${your key pair name} MyIpAddress=${You global IP address with netmask}
 
 Parameters:
   KeyPairName:
@@ -75,5 +74,6 @@ Outputs:
     Description: The Public IP of this EC2 instance.
     Value: !GetAtt EC2ProxyServer.PublicIp
     Export:
-      Name: EC2PublicIp
+      Name: !Sub EC2PublicIp-${AWS::StackName}
+
 
