@@ -18,7 +18,6 @@ Resources:
   EC2ProxyServer:
     Type: AWS::EC2::Instance
     Properties:
-      AvailabilityZone: us-west-2a
       ImageId: !Ref LatestAmiId
       InstanceType: t2.micro
       KeyName: !Ref KeyPairName
