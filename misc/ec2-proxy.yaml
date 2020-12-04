@@ -1,7 +1,7 @@
 ---
 Description: |
   You can create a stack in AWS CLI as below.
-  $ aws cloudformation deploy --template-file ec2-proxy.yaml --stack-name ec2-proxy --parameter-overrides KeyPairName=${your key pair name} MyIpAddress=${You global IP address with netmask}
+  $ aws cloudformation deploy --template-file ec2-proxy.yaml --capabilities CAPABILITY_IAM --stack-name ec2-proxy --parameter-overrides KeyPairName=${your key pair name} MyIpAddress=${You global IP address with netmask}
 
 Parameters:
   KeyPairName:
@@ -15,11 +15,73 @@ Parameters:
     Description: 'Please put your global IP address communicates with the EC2 instance.'
 
 Resources:
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html
+  EC2ProxyIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: This Role allows EC2 instances to be managed by SSM.
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - PolicyName: AllowSSM
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'ssm:DescribeAssociation'
+                  - 'ssm:GetDeployablePatchSnapshotForInstance'
+                  - 'ssm:GetDocument'
+                  - 'ssm:DescribeDocument'
+                  - 'ssm:GetManifest'
+                  - 'ssm:GetParameter'
+                  - 'ssm:GetParameters'
+                  - 'ssm:ListAssociations'
+                  - 'ssm:ListInstanceAssociations'
+                  - 'ssm:PutInventory'
+                  - 'ssm:PutComplianceItems'
+                  - 'ssm:PutConfigurePackageResult'
+                  - 'ssm:UpdateAssociationStatus'
+                  - 'ssm:UpdateInstanceAssociationStatus'
+                  - 'ssm:UpdateInstanceInformation'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'ssmmessages:CreateControlChannel'
+                  - 'ssmmessages:CreateDataChannel'
+                  - 'ssmmessages:OpenControlChannel'
+                  - 'ssmmessages:OpenDataChannel'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'ec2messages:AcknowledgeMessage'
+                  - 'ec2messages:DeleteMessage'
+                  - 'ec2messages:FailMessage'
+                  - 'ec2messages:GetEndpoint'
+                  - 'ec2messages:GetMessages'
+                  - 'ec2messages:SendReply'
+                Resource: '*'
+
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-instanceprofile.html
+  EC2ProxyInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref EC2ProxyIAMRole
+
   EC2ProxyServer:
     Type: AWS::EC2::Instance
     Properties:
       ImageId: !Ref LatestAmiId
       InstanceType: t2.micro
+      IamInstanceProfile: !Ref EC2ProxyInstanceProfile
       KeyName: !Ref KeyPairName
       SecurityGroups:
         - !Ref EC2ProxyServerSG
