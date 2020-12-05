@@ -235,10 +235,11 @@ Resources:
         Fn::ImportValue:
           !Sub "${EnvName}-Route53HostedZoneName"
       Name:
-        Fn::Join:
-          - ""
-          - - "rds-reader."
-            - Fn::ImportValue: !Sub "${EnvName}-Route53HostedZoneName"
+        # Fn::Join:
+        #   - ""
+        #   - - "rds-reader."
+        #     - Fn::ImportValue: !Sub "${EnvName}-Route53HostedZoneName"
+        !Join ["", ["rds-reader.", Fn::ImportValue !Sub "${EnvName}-Route53HostedZoneName"]]
       Type: CNAME
       ResourceRecords:
         - !GetAtt DBCluster.ReadEndpoint.Address
