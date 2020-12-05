@@ -11,6 +11,14 @@ Please note the following items.
 
 
 # Structure of Layers
+## CloudFormation StackSets
+As templates classified for using StackSets, their name start with "cfn-stack-set-" prefix and are stored in the "stack-sets/" directory.  
+
+- cfn-stack-set-01-administrator-account.yml
+- cfn-stack-set-01-target-account.yml
+- cfn-stack-set-11-resources.yml
+
+## Ordinary CloudFormation templates
 All templates are classified as rules below, even though there are some execptions.
 Basically, bigger numbered templates depend on smaller numbered them.
 
@@ -21,12 +29,15 @@ Basically, bigger numbered templates depend on smaller numbered them.
 - 7x,8x: RESERVED
 - 9x: RESERVED
 
-# Cautious things
-## ACM(Amazon Certificate Manager)
+# Cautious notes
+## CloudFormation StackSets
+
+## Ordinary CloudFormation templates
+### ACM(Amazon Certificate Manager)
 You have to create a global certificate in the North Virginia region in advance. That corresponds to the domain name of the environment you want to build.
 Since Cloudformation cannot create AWS resources in other region, you cannot create a global certificate if you are intended to build an environment in other regions.
 
-## API Gateway
+### API Gateway
 The CloudFormation template to create an API Gateway instance requires items below.
 
 1. needs a global certificate created in advance(as above).
