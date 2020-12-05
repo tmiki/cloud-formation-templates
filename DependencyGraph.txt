@@ -1,0 +1,37 @@
+# This file can be visualized in the Graphviz tool below.
+# http://www.webgraphviz.com/
+#
+
+
+digraph prof {
+	ratio = fill;
+	node [style=filled];
+	"start" -> "01-basis" [color="0.649 0.701 0.701"];
+	"01-basis" -> "02-acm-regional" [color="0.649 0.701 0.701"];
+	"start" -> "11-s3" [color="0.649 0.701 0.701"];
+	"11-s3" -> "copying-operation" [color="0.649 0.701 0.701"];
+	"copying-operation" -> "12-apigateway" [color="0.649 0.701 0.701"];
+	"12-apigateway" -> "13-cognito" [color="0.649 0.701 0.701"];
+	"01-basis" -> "31-ec2" [color="0.649 0.701 0.701"];
+	"01-basis" -> "32-rds" [color="0.649 0.701 0.701"];
+	"01-basis" -> "33-alb" [color="0.649 0.701 0.701"];
+	"02-acm-regional" -> "33-alb" [color="0.649 0.701 0.701"];
+	"start" -> "34-dynamodb" [color="0.649 0.701 0.701"];
+	"01-basis" -> "41-ecs-clusters" [color="0.649 0.701 0.701"];
+	"41-ecs-clusters" -> "42-ecs-taskdefs-and-services" [color="0.649 0.701 0.701"];
+	"33-alb" -> "42-ecs-taskdefs-and-services" [color="0.649 0.701 0.701"];
+
+"start" [color="0.650 0.200 1.000"];
+"01-basis" [color="0.650 0.200 1.000"];
+"02-acm-regional" [color="0.650 0.200 1.000"];
+"11-s3" [color="0.650 0.200 1.000"];
+"copying-operation" [color="1.650 0.200 1.000"];
+"12-apigateway" [color="0.650 0.200 1.000"];
+"13-cognito" [color="0.650 0.200 1.000"];
+"31-ec2" [color="0.650 0.200 1.000"];
+"32-rds" [color="0.650 0.200 1.000"];
+"33-alb" [color="0.650 0.200 1.000"];
+"34-dynamodb" [color="0.650 0.200 1.000"];
+"41-ecs-clusters" [color="0.650 0.200 1.000"];
+"42-ecs-taskdefs-and-services" [color="0.650 0.200 1.000"];
+}
