@@ -3,6 +3,9 @@ Description: |
   You can create a stack in AWS CLI as below.
   $ aws cloudformation deploy --template-file ec2-proxy.yaml --capabilities CAPABILITY_IAM --stack-name ec2-proxy --parameter-overrides KeyPairName=${your key pair name} MyIpAddress=${You global IP address with netmask}
 
+# ----------------------------------------------------------------------------------------------------
+# Parameters section
+# ----------------------------------------------------------------------------------------------------
 Parameters:
   KeyPairName:
     Type: AWS::EC2::KeyPair::KeyName
@@ -14,12 +17,16 @@ Parameters:
     Type: String
     Description: 'Please put your global IP address communicates with the EC2 instance.'
 
+# ----------------------------------------------------------------------------------------------------
+# Resources section
+# ----------------------------------------------------------------------------------------------------
 Resources:
   # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-iam-role.html
   EC2ProxyIAMRole:
     Type: AWS::IAM::Role
     Properties:
       Description: This Role allows EC2 instances to be managed by SSM.
+      Path: '/'
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -73,9 +80,11 @@ Resources:
   EC2ProxyInstanceProfile:
     Type: AWS::IAM::InstanceProfile
     Properties:
+      Path: '/'
       Roles:
         - !Ref EC2ProxyIAMRole
 
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-instance.html
   EC2ProxyServer:
     Type: AWS::EC2::Instance
     Properties:
@@ -120,6 +129,7 @@ Resources:
                 enabled: 'true'
                 ensureRunning: 'true'
 
+  # https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group.html
   EC2ProxyServerSG:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -130,6 +140,9 @@ Resources:
         FromPort: 1
         ToPort: 65535
 
+# ----------------------------------------------------------------------------------------------------
+# Outputs section
+# ----------------------------------------------------------------------------------------------------
 Outputs:
   EC2PublicIp:
     Description: The Public IP of this EC2 instance.
