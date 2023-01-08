@@ -1,11 +1,11 @@
-Description:
+Description: |
   This template enables you to create the following resources.
   
-  - A VPC
-  - Subnets classified 4 types such as "Front", "Service", "Datastore" and "Bastion. The former 3 subnets spread across 2 AZs.
+  - A VPC.
+  - Subnets classified 4 types such as "Front", "Service", "Datastore" and "Bastion. The former 3 subnet types are spread across 3 AZs.
   - A Route table as for a Public Subnet.
   - An Internet Gateway attached the Route table above.
-  - A NAT Gateway and associated subnets and a route table will be optionally provided. If you set the parameter "enableNatGw" true, subnets called "PrivateSubnet*" and necessary resources are created.
+  - Subnets with A NAT Gateway and corresponding route tables are optionally provided. If you set the parameter "EnableNatGw" true, subnets called "PrivateSubnet*" and its accompanying resources will be created.
   
 # ------------------------------------------------------------
 # Parameters/Mappings/Conditions section
@@ -26,7 +26,7 @@ Parameters:
   RevisionNumber:
     Description: The revision number of this template consists of 3 parts.
     Type: String
-    Default: 0.4.0
+    Default: 0.5.0
 
   EnableNatGw:
     Description: This parameter defines whether to create Private Subnets with a NAT Gateway.
@@ -48,24 +48,32 @@ Mappings:
       VpcCIDR: 172.16.0.0/19
       FrontSubnet1CIDR:     172.16.0.0/23
       FrontSubnet2CIDR:     172.16.2.0/23
+      FrontSubnet3CIDR:     172.16.4.0/23
       ServiceSubnet1CIDR:   172.16.8.0/23
       ServiceSubnet2CIDR:   172.16.10.0/23
+      ServiceSubnet3CIDR:   172.16.12.0/23
       PrivateSubnet1CIDR:   172.16.16.0/23
       PrivateSubnet2CIDR:   172.16.18.0/23
+      PrivateSubnet3CIDR:   172.16.20.0/23
       DatastoreSubnet1CIDR: 172.16.24.0/24
-      DatastoreSubnet2CIDR: 172.16.26.0/24
-      BastionSubnet1CIDR:   172.16.31.0/26
+      DatastoreSubnet2CIDR: 172.16.25.0/24
+      DatastoreSubnet3CIDR: 172.16.26.0/24
+      BastionSubnet1CIDR:   172.16.31.192/26
     dev2:
       VpcCIDR: 172.16.32.0/19
       FrontSubnet1CIDR:     172.16.32.0/23
       FrontSubnet2CIDR:     172.16.34.0/23
+      FrontSubnet3CIDR:     172.16.36.0/23
       ServiceSubnet1CIDR:   172.16.40.0/23
       ServiceSubnet2CIDR:   172.16.42.0/23
+      ServiceSubnet3CIDR:   172.16.44.0/23
       PrivateSubnet1CIDR:   172.16.48.0/23
       PrivateSubnet2CIDR:   172.16.50.0/23
+      PrivateSubnet3CIDR:   172.16.52.0/23
       DatastoreSubnet1CIDR: 172.16.56.0/24
-      DatastoreSubnet2CIDR: 172.16.58.0/24
-      BastionSubnet1CIDR:   172.16.63.0/26
+      DatastoreSubnet2CIDR: 172.16.57.0/24
+      DatastoreSubnet3CIDR: 172.16.58.0/24
+      BastionSubnet1CIDR:   172.16.63.192/26
 
 Conditions:
   enableNatGw: !Equals [ !Ref EnableNatGw, "true" ]
@@ -163,6 +171,21 @@ Resources:
         - Key: AppService
           Value: !Ref AppServiceName
 
+  FrontSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      CidrBlock: !FindInMap [Vpc, !Ref EnvName, FrontSubnet3CIDR]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}-Front(AZ3)
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
   ServiceSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -188,6 +211,21 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${EnvName}-Service(AZ2)
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+  ServiceSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      CidrBlock: !FindInMap [Vpc, !Ref EnvName, ServiceSubnet3CIDR]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}-Service(AZ3)
         - Key: Env
           Value: !Ref EnvName
         - Key: AppService
@@ -225,6 +263,22 @@ Resources:
         - Key: AppService
           Value: !Ref AppServiceName
 
+  PrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    Condition: enableNatGw
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      CidrBlock: !FindInMap [Vpc, !Ref EnvName, PrivateSubnet3CIDR]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}-Private(AZ3)
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
   DatastoreSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
@@ -250,6 +304,21 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${EnvName}-Datastore(AZ2)
+        - Key: Env
+          Value: !Ref EnvName
+        - Key: AppService
+          Value: !Ref AppServiceName
+
+  DatastoreSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 2, !GetAZs '' ]
+      CidrBlock: !FindInMap [Vpc, !Ref EnvName, DatastoreSubnet3CIDR]
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub ${EnvName}-Datastore(AZ3)
         - Key: Env
           Value: !Ref EnvName
         - Key: AppService
@@ -330,6 +399,12 @@ Resources:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref FrontSubnet2
 
+  FrontSubnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref FrontSubnet3
+
   ServiceSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
@@ -341,6 +416,12 @@ Resources:
     Properties:
       RouteTableId: !Ref PublicRouteTable
       SubnetId: !Ref ServiceSubnet2
+
+  ServiceSubnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref ServiceSubnet3
 
   PrivateSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -355,6 +436,13 @@ Resources:
     Properties:
       RouteTableId: !Ref PrivateRouteTable
       SubnetId: !Ref PrivateSubnet2
+
+  PrivateSubnet3RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: enableNatGw
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      SubnetId: !Ref PrivateSubnet3
 
   BastionSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -437,19 +525,19 @@ Outputs:
 
   FrontSubnets:
     Description: A list of the front subnets
-    Value: !Join [ ",", [ !Ref FrontSubnet1, !Ref FrontSubnet2 ]]
+    Value: !Join [ ",", [ !Ref FrontSubnet1, !Ref FrontSubnet2, !Ref FrontSubnet3 ]]
     Export:
       Name: !Sub ${EnvName}-FrontSubnets
 
   ServiceSubnets:
     Description: A list of the front subnets
-    Value: !Join [ ",", [ !Ref ServiceSubnet1, !Ref ServiceSubnet2 ]]
+    Value: !Join [ ",", [ !Ref ServiceSubnet1, !Ref ServiceSubnet2, !Ref ServiceSubnet3 ]]
     Export:
       Name: !Sub ${EnvName}-ServiceSubnets
 
   DatastoreSubnets:
     Description: A list of the datastore subnets
-    Value: !Join [ ",", [ !Ref DatastoreSubnet1, !Ref DatastoreSubnet2 ]]
+    Value: !Join [ ",", [ !Ref DatastoreSubnet1, !Ref DatastoreSubnet2, !Ref DatastoreSubnet2 ]]
     Export:
       Name: !Sub ${EnvName}-DatastoreSubnets
 
@@ -465,6 +553,12 @@ Outputs:
     Export:
       Name: !Sub ${EnvName}-FrontSubnet2
 
+  FrontSubnet3:
+    Description: A reference to the public subnet in the 3rd Availability Zone
+    Value: !Ref FrontSubnet3
+    Export:
+      Name: !Sub ${EnvName}-FrontSubnet3
+
   ServiceSubnet1:
     Description: A reference to the public subnet in the 1st Availability Zone
     Value: !Ref ServiceSubnet1
@@ -477,6 +571,12 @@ Outputs:
     Export:
       Name: !Sub ${EnvName}-ServiceSubnet2
 
+  ServiceSubnet3:
+    Description: A reference to the public subnet in the 3rd Availability Zone
+    Value: !Ref ServiceSubnet3
+    Export:
+      Name: !Sub ${EnvName}-ServiceSubnet3
+
   DatastoreSubnet1:
     Description: A reference to the datastore subnet in the 1st Availability Zone
     Value: !Ref DatastoreSubnet1
@@ -488,6 +588,12 @@ Outputs:
     Value: !Ref DatastoreSubnet2
     Export:
       Name: !Sub ${EnvName}-DatastoreSubnet2
+
+  DatastoreSubnet3:
+    Description: A reference to the datastore subnet in the 3rd Availability Zone
+    Value: !Ref DatastoreSubnet3
+    Export:
+      Name: !Sub ${EnvName}-DatastoreSubnet3
 
   BastionSubnet1:
     Description: A reference to the bastion subnet in the 1st Availability Zone
